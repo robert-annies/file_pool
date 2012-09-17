@@ -38,11 +38,11 @@ Or install it yourself as:
 ### Setup
 The root path and optionally a Logger must be defined:
 
-  FilePool.setup '/var/lib/files'
+    FilePool.setup '/var/lib/files'
 
 In a Rails project the file pool setup would be placed in an intializer:
 
-  config/initializers/file_pool.
+    config/initializers/file_pool.
 
 ### Example Usage
 
