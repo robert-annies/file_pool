@@ -42,7 +42,7 @@ The root path and optionally a Logger must be defined:
 
 In a Rails project the file pool setup would be placed in an intializer:
 
-    config/initializers/file_pool.
+    config/initializers/file_pool.rb
 
 ### Example Usage
 
