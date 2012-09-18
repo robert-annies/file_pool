@@ -36,7 +36,8 @@ Or install it yourself as:
 ## Usage
 
 ### Setup
-The root path and optionally a Logger must be defined:
+
+Set up the root path under which all files will reside:
 
     FilePool.setup '/var/lib/files'
 
