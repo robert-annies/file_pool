@@ -4,6 +4,7 @@ require 'uuidtools'
 require 'tempfile'
 require 'openssl'
 require 'base64'
+require 'pry'
 =begin
 <em>Robert Anniés (2012)</em>
 
@@ -29,7 +30,7 @@ the 3 first hexadecimal digits of a UUID as path. For example:
 == Examples
 
 === Setup
-The root path must be specified:
+The root path and optionally a Logger must be defined:
 
   FilePool.setup '/var/lib/files'
 
@@ -80,7 +81,8 @@ module FilePool
   class InvalidFileId < Exception; end
 
   #
-  # Setup the root directory of the file pool root.
+  # Setup the root directory of the file pool root and specify where
+  # to write log messages
   #
   # === Parameters:
   #
