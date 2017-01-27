@@ -89,20 +89,9 @@ module FilePool
   #   absolute path of the file pool's root directory under which all files will be stored.
   # secret (String)::
   #   secret key to crypt and decrypt the contents of the filepool.
-  def self.setup root, secret = nil
+  def self.setup root, secret = nil, config_file = nil
     @@root = root
-    @@secret = secret
-    unless @@secret.nil?
-      cipher = OpenSSL::Cipher::AES.new(256, :CBC)
-      cipher.encrypt
-      @@iv  = cipher.random_iv
-      @@salt  =  OpenSSL::Random.random_bytes 16
-      @@iter  = 20000
-      @@key_len = cipher.key_len
-      @@digest = OpenSSL::Digest::SHA256.new
-      @@key = OpenSSL::PKCS5.pbkdf2_hmac(@@secret, @@salt, @@iter, cipher.key_len, @@digest)
-      cipher.key = @@key
-    end
+    configure secret, config_file
   end
 
   #
@@ -391,4 +380,35 @@ module FilePool
     decipher
   end
 
+  #
+  # Retrieves configuration from config file or creates
+  # a new one in case there's none available.
+  #
+  def self.configure secret, config_file
+    @@secret = secret
+    unless secret.nil? or config_file.nil?
+      cipher = OpenSSL::Cipher::AES.new(256, :CBC)
+      cipher.encrypt
+      config = YAML.load_file(config_file)
+      unless config
+        @@iv  = cipher.random_iv
+        @@salt  =  OpenSSL::Random.random_bytes 16
+        @@iter  = 20000
+        @@key_len = cipher.key_len
+        @@digest = OpenSSL::Digest::SHA256.new
+        @@key = OpenSSL::PKCS5.pbkdf2_hmac(@@secret, @@salt, @@iter, cipher.key_len, @@digest)
+        cipher.key = @@key
+        cfg = File.open(config_file, 'w')
+        cfg.write({:secret => secret, :iv => @@iv, :salt => @@salt, :iter => @@iter, :key_len => @@key_len, :digest => @@digest, :key => @@key}.to_yaml)
+      else
+        @@iv  = config[:iv]
+        @@salt  =  config[:salt]
+        @@iter  = config[:iter]
+        @@key_len = config[:key_len]
+        @@digest = config[:digest]
+        @@key = config[:key]
+        cipher.key = @@key
+      end
+    end
+  end
 end
