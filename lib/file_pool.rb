@@ -4,6 +4,7 @@ require 'uuidtools'
 require 'tempfile'
 require 'openssl'
 require 'base64'
+require 'yaml'
 =begin
 <em>Robert Anniés (2012)</em>
 
@@ -87,11 +88,12 @@ module FilePool
   #
   # root (String)::
   #   absolute path of the file pool's root directory under which all files will be stored.
-  # secret (String)::
-  #   secret key to crypt and decrypt the contents of the filepool.
-  def self.setup root, secret = nil, config_file = nil
+  # config_file_path (String)::
+  #   path to the config file of the filepool.
+  def self.setup root, config_file_path=nil
     @@root = root
-    configure secret, config_file
+    @@crypted_mode = false
+    configure config_file_path
   end
 
   #
@@ -116,7 +118,7 @@ module FilePool
     newid = uuid
     target = path newid
 
-    unless @@secret.nil?
+    if @@crypted_mode
       FileUtils.mkpath(id2dir_secured newid)
       path = crypt(path)
     else
@@ -169,10 +171,10 @@ module FilePool
     if File.file?(id2dir_secured(fid) + "/#{fid}")
       decrypt id2dir_secured(fid) + "/#{fid}"
     else
-      if @@secret.nil?
-        id2dir(fid) + "/#{fid}"
-      else
+      if @@crypted_mode
         id2dir_secured(fid) + "/#{fid}"
+      else
+        id2dir(fid) + "/#{fid}"
       end
     end
   end
@@ -194,10 +196,10 @@ module FilePool
     if File.file?(id2dir_secured(fid) + "/#{fid}")
       id2dir_secured(fid) + "/#{fid}"
     else
-      if @@secret.nil?
-        id2dir(fid) + "/#{fid}"
-      else
+      if @@crypted_mode
         id2dir_secured(fid) + "/#{fid}"
+      else
+        id2dir(fid) + "/#{fid}"
       end
     end
   end
@@ -384,28 +386,21 @@ module FilePool
   # Retrieves configuration from config file or creates
   # a new one in case there's none available.
   #
-  def self.configure secret, config_file
-    @@secret = secret
-    unless secret.nil? or config_file.nil?
+  def self.configure config_file
+    unless config_file.nil?
+      @@crypted_mode = true
       cipher = OpenSSL::Cipher::AES.new(256, :CBC)
       cipher.encrypt
       config = YAML.load_file(config_file)
       unless config
         @@iv  = cipher.random_iv
-        @@salt  =  OpenSSL::Random.random_bytes 16
-        @@iter  = 20000
-        @@key_len = cipher.key_len
-        @@digest = OpenSSL::Digest::SHA256.new
-        @@key = OpenSSL::PKCS5.pbkdf2_hmac(@@secret, @@salt, @@iter, cipher.key_len, @@digest)
+        @@key = cipher.random_key
         cipher.key = @@key
         cfg = File.open(config_file, 'w')
-        cfg.write({:secret => secret, :iv => @@iv, :salt => @@salt, :iter => @@iter, :key_len => @@key_len, :digest => @@digest, :key => @@key}.to_yaml)
+        cfg.write({:iv => @@iv, :key => @@key}.to_yaml)
+        cfg.close
       else
         @@iv  = config[:iv]
-        @@salt  =  config[:salt]
-        @@iter  = config[:iter]
-        @@key_len = config[:key_len]
-        @@digest = config[:digest]
         @@key = config[:key]
         cipher.key = @@key
       end
