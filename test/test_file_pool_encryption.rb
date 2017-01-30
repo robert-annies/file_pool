@@ -7,13 +7,15 @@ class FilePoolTest < Test::Unit::TestCase
   def setup
     @test_dir = "#{File.dirname(__FILE__)}/files"
     @pool_root = "#{File.dirname(__FILE__)}/fp_root"
-    @secret = "Test_Secret_For_Encryption"
-    FilePool.setup @pool_root, @secret
+    @file_pool_config = "#{File.dirname(__FILE__)}/file_pool_cfg.yml"
+    FileUtils.touch @file_pool_config
+    FilePool.setup @pool_root, @file_pool_config
   end
 
   def teardown
     FileUtils.rm_r(Dir.glob @pool_root+"/*")
     FileUtils.rm_r(Dir.glob "#{@pool_root}_secured/*")
+    FileUtils.rm_r(Dir.glob @file_pool_config)
   end
 
   context "File Pool" do
