@@ -26,7 +26,7 @@ the 3 first hexadecimal digits of a UUID as path. For example:
 == Examples
 
 === Setup
-The root path and optionally a Logger must be defined:
+The root path must be specified:
 
   FilePool.setup '/var/lib/files'
 
@@ -77,8 +77,7 @@ module FilePool
   class InvalidFileId < Exception; end
 
   #
-  # Setup the root directory of the file pool root and specify where
-  # to write log messages
+  # Setup the root directory of the file pool root.
   #
   # === Parameters:
   #
