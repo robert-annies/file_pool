@@ -364,6 +364,7 @@ module FilePool
     cipher = OpenSSL::Cipher::AES.new(256, :CBC)
     cipher.encrypt
     cipher.key = @@key
+    cipher.iv  = @@iv
     cipher
   end
 
@@ -379,6 +380,7 @@ module FilePool
     decipher = OpenSSL::Cipher::AES.new(256, :CBC)
     decipher.decrypt
     decipher.key = @@key
+    decipher.iv  = @@iv
     decipher
   end
 
@@ -389,20 +391,21 @@ module FilePool
   def self.configure config_file
     unless config_file.nil?
       @@crypted_mode = true
-      cipher = OpenSSL::Cipher::AES.new(256, :CBC)
-      cipher.encrypt
-      config = YAML.load_file(config_file)
-      unless config
+      begin
+        config = YAML.load_file(config_file)
+        @@iv  = config[:iv]
+        @@key = config[:key]
+      rescue Errno::ENOENT
+        cipher = OpenSSL::Cipher::AES.new(256, :CBC)
         @@iv  = cipher.random_iv
         @@key = cipher.random_key
         cipher.key = @@key
         cfg = File.open(config_file, 'w')
         cfg.write({:iv => @@iv, :key => @@key}.to_yaml)
         cfg.close
-      else
-        @@iv  = config[:iv]
-        @@key = config[:key]
-        cipher.key = @@key
+        File.chmod(0400, config_file)
+      rescue => other_error
+        raise "FilePool: Could not load secrets from #{config_file}: #{other_error}"
       end
     end
   end
