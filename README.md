@@ -2,8 +2,9 @@
 
 FilePool helps to manage a large number of files in a Ruby project. It
 takes care of the storage of files in a balanced directory tree and
-generates unique identifiers for all files. It also comes in handy
-when dealing with only a few files.
+generates unique identifiers for all files.
+
+Optionally FilePool can use symmetric encryption for all files managed.
 
 FilePool does not deal with file meta information. It's only purpose
 is to return a file's location given a file identifier, which was
@@ -58,6 +59,21 @@ Get location of previously added file
 Remove a file
 
     FilePool.remove(fid)
+
+### Encryption
+
+FilePool can store files symmetrically encrypted using AES-256-CBC. In order to
+switch FilePool to encryption pass the location of a file containing the secret:
+
+    FilePool.setup '/var/lib/files', :secrets_file => '/etc/filepool_secrets.yml'
+
+This file is initialized with a random secret if it is not present. The key and
+initialization vector stored there will be used for all files. When you request
+a file with the FilePool#path method FilePool decrypts it first and returns a path to
+the decrypted file.
+
+In encryption mode the filepool root directory name is suffixed with "_secured",
+so that mixed mode (encryped and plain) operation is possible.
 
 ### Maintenance
 

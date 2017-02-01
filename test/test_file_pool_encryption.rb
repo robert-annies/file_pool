@@ -8,7 +8,7 @@ class FilePoolEncryptionTest < Test::Unit::TestCase
     @test_dir = "#{File.dirname(__FILE__)}/files"
     @pool_root = "#{File.dirname(__FILE__)}/fp_root"
     @file_pool_config = "#{File.dirname(__FILE__)}/file_pool_cfg.yml"
-    FilePool.setup @pool_root, @file_pool_config
+    FilePool.setup @pool_root, :secrets_file => @file_pool_config
   end
 
   def teardown
@@ -63,12 +63,12 @@ class FilePoolEncryptionTest < Test::Unit::TestCase
       fidc = FilePool.add!(@test_dir+"/c")
       fidd = FilePool.add!(@test_dir+"/d")
 
-      path_c = FilePool.path_raw(fidc)
+      path_c = FilePool.path(fidc, :decrypt => false)
       FilePool.remove(fidc)
 
       assert !File.exist?(path_c)
-      assert File.exist?(FilePool.path_raw(fidb))
-      assert File.exist?(FilePool.path_raw(fidd))
+      assert File.exist?(FilePool.path(fidb, :decrypt => false))
+      assert File.exist?(FilePool.path(fidd, :decrypt => false))
 
     end
 

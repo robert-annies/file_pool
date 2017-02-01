@@ -7,7 +7,7 @@ class FilePoolTest < Test::Unit::TestCase
   def setup
     @test_dir = "#{File.dirname(__FILE__)}/files"
     @pool_root = "#{File.dirname(__FILE__)}/fp_root"
-    FilePool.setup @pool_root, nil
+    FilePool.setup @pool_root
   end
 
   def teardown
@@ -32,9 +32,9 @@ class FilePoolTest < Test::Unit::TestCase
       fidc = FilePool.add(@test_dir+"/c")
       fidd = FilePool.add!(@test_dir+"/d")
 
-      assert_equal "#{@pool_root}/#{fidb[0,1]}/#{fidb[1,1]}/#{fidb[2,1]}/#{fidb}", FilePool.path_raw(fidb)
-      assert_equal "#{@pool_root}/#{fidc[0,1]}/#{fidc[1,1]}/#{fidc[2,1]}/#{fidc}", FilePool.path_raw(fidc)
-      assert_equal "#{@pool_root}/#{fidd[0,1]}/#{fidd[1,1]}/#{fidd[2,1]}/#{fidd}", FilePool.path_raw(fidd)
+      assert_equal "#{@pool_root}/#{fidb[0,1]}/#{fidb[1,1]}/#{fidb[2,1]}/#{fidb}", FilePool.path(fidb)
+      assert_equal "#{@pool_root}/#{fidc[0,1]}/#{fidc[1,1]}/#{fidc[2,1]}/#{fidc}", FilePool.path(fidc)
+      assert_equal "#{@pool_root}/#{fidd[0,1]}/#{fidd[1,1]}/#{fidd[2,1]}/#{fidd}", FilePool.path(fidd)
 
     end
 
@@ -44,7 +44,7 @@ class FilePoolTest < Test::Unit::TestCase
       fidc = FilePool.add!(@test_dir+"/c")
       fidd = FilePool.add!(@test_dir+"/d")
 
-      path_c = FilePool.path_raw(fidc)
+      path_c = FilePool.path(fidc)
       FilePool.remove(fidc)
 
       assert !File.exist?(path_c)
