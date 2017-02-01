@@ -18,7 +18,5 @@ tree and generates unique identifiers for all files.
   gem.name          = "file_pool"
   gem.require_paths = ["lib"]
   gem.version       = FilePool::VERSION
-  gem.add_development_dependency('shoulda-context','1.2.1')
   gem.add_dependency('uuidtools', '~> 2.1.2')
-
 end

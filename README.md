@@ -18,7 +18,7 @@ the 3 first hexadecimal digits of a UUID as path. For example:
     0/c/f/0cfb082a-fd57-490c-978b-e47d5948bc8b
     6/1/d/61ddfe33-13f3-4f71-9234-5fbbf5c4fc2c
 
-FilePool is tested with Ruby 1.8.7 and 1.9.3.
+FilePool is tested with Ruby 1.8.7, 2.0.0 and 2.2.1.
 
 ## Installation
 
