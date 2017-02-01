@@ -322,7 +322,7 @@ module FilePool
     result = Tempfile.new uuid
     crypted_content = cipher.update(File.read(path))
     crypted_content << cipher.final
-    result.write Base64.encode64(crypted_content)
+    result.write crypted_content
     result.close
     result.path
   end
@@ -343,7 +343,7 @@ module FilePool
   def self.decrypt path
     decipher = create_decipher
     # Now decrypt the data:
-    decrypted_content = decipher.update(Base64.decode64(File.read(path)))
+    decrypted_content = decipher.update(File.read(path))
     decrypted_content << decipher.final
     # Put it in a temp file
     output = Tempfile.new uuid
