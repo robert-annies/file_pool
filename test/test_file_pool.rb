@@ -1,5 +1,8 @@
 require 'rubygems'
-require 'shoulda'
+require 'bundler/setup'
+
+require 'test/unit'
+require 'shoulda-context'
 require 'file_pool'
 
 class FilePoolTest < Test::Unit::TestCase
