@@ -3,7 +3,6 @@ require 'file_pool/version'
 require 'uuidtools'
 require 'tempfile'
 require 'openssl'
-require 'base64'
 require 'yaml'
 =begin
 <em>Robert Anniés (2012)</em>
@@ -155,7 +154,9 @@ module FilePool
   end
 
   #
-  # Return the path where a previously added file is available by its ID.
+  # Return the files path corresponding to the passed file ID, no matter if it
+  # exists or not. In encrypting mode the file is first decrypted and the
+  # returned path will point to a temporary location of the decrypted file.
   #
   # === Parameters:
   #
@@ -167,10 +168,21 @@ module FilePool
   # :: *String*, absolute path of the file in the pool.
   def self.path fid
     raise InvalidFileId unless valid?(fid)
-    # Is it crypted or not?
+
+    # file present in pool?
     if File.file?(id2dir_secured(fid) + "/#{fid}")
-      decrypt id2dir_secured(fid) + "/#{fid}"
+      # present in secured tree
+      if @@crypted_mode
+        # return path of decrypted file (tmp path)
+        decrypt id2dir_secured(fid) + "/#{fid}"
+      else
+        id2dir_secured(fid) + "/#{fid}"
+      end
+    elsif File.file?(id2dir(fid) + "/#{fid}")
+      # present in plain tree
+      id2dir(fid) + "/#{fid}"
     else
+      # not present
       if @@crypted_mode
         id2dir_secured(fid) + "/#{fid}"
       else
