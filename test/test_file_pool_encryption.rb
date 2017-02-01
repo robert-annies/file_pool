@@ -2,13 +2,12 @@ require 'rubygems'
 require 'shoulda'
 require 'file_pool'
 
-class FilePoolTest < Test::Unit::TestCase
+class FilePoolEncryptionTest < Test::Unit::TestCase
 
   def setup
     @test_dir = "#{File.dirname(__FILE__)}/files"
     @pool_root = "#{File.dirname(__FILE__)}/fp_root"
     @file_pool_config = "#{File.dirname(__FILE__)}/file_pool_cfg.yml"
-    FileUtils.touch @file_pool_config
     FilePool.setup @pool_root, @file_pool_config
   end
 
