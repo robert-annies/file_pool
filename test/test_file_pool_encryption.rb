@@ -51,10 +51,11 @@ class FilePoolEncryptionTest < Test::Unit::TestCase
                      Digest::MD5.hexdigest(File.open(FilePool.path(fidc)).read)
       assert_equal Digest::MD5.hexdigest(File.open(@test_dir+"/d").read),
                      Digest::MD5.hexdigest(File.open(FilePool.path(fidd)).read)
-      assert_equal 'tmp', FilePool.path(fida).split('/')[1]
-      assert_equal 'tmp', FilePool.path(fidb).split('/')[1]
-      assert_equal 'tmp', FilePool.path(fidc).split('/')[1]
-      assert_equal 'tmp', FilePool.path(fidd).split('/')[1]
+
+      assert_equal Dir.tmpdir, File.dirname(FilePool.path(fida))
+      assert_equal Dir.tmpdir, File.dirname(FilePool.path(fidb))
+      assert_equal Dir.tmpdir, File.dirname(FilePool.path(fidc))
+      assert_equal Dir.tmpdir,File.dirname( FilePool.path(fidd))
     end
 
     should "remove files from encrypted pool" do
