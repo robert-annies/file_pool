@@ -10,8 +10,7 @@ module FilePool
   class InvalidFileId < Exception; end
 
   #
-  # Setup the root directory of the file pool root and specify where
-  # to write log messages
+  # Setup the root directory of the file pool and configure encryption
   #
   # === Parameters:
   #
@@ -19,9 +18,21 @@ module FilePool
   #   absolute path of the file pool's root directory under which all files will be stored.
   # config_file_path (String)::
   #   path to the config file of the filepool.
+  # options (Hash)::
+  #   * :secrets_file (String)
+  #     path to file containing key and IV for encryption (if omitted FilePool
+  #     does not encrypt/decrypt). If file is not present, the file is initialized with a
+  #     new random key and IV.
+  #   * :encryption_block_size (Integer) sets the block size for
+  #     encryption/decryption in bytes. Larger blocks need more memory and less time (less IO).
+  #     Defaults to 1'048'576 (1 MiB).
   def self.setup root, options={}
+    unless(unknown = options.keys - [:encryption_block_size, :secrets_file]).empty?
+      puts "FilePool Warning: unknown option(s) passed to #setup: #{unknown.inspect}"
+    end
     @@root = root
     @@crypted_mode = false
+    @@block_size = options[:encryption_block_size] || (1024*1024)
     configure options[:secrets_file]
   end
 
@@ -247,10 +258,17 @@ module FilePool
   def self.crypt path
     # Crypt the file in the temp folder and copy after
     cipher = create_cipher
-    result = Tempfile.new uuid
-    crypted_content = cipher.update(File.read(path))
-    crypted_content << cipher.final
-    result.write crypted_content
+    result = Tempfile.new 'FilePool-encrypt'
+
+    buf = ''
+
+    File.open(path) do |inf|
+      while inf.read(@@block_size, buf)
+        result << cipher.update(buf)
+      end
+      result << cipher.final
+    end
+
     result.close
     result.path
   end
@@ -271,12 +289,17 @@ module FilePool
   def self.decrypt path
     decipher = create_decipher
     # Now decrypt the data:
-    decrypted_content = decipher.update(File.read(path))
-    decrypted_content << decipher.final
-    # Put it in a temp file
-    output = Tempfile.new uuid
-    output.write decrypted_content
-    output.open
+    output = Tempfile.new 'FilePool-decrypt'
+
+    buf = ''
+    File.open(path) do |inf|
+      while inf.read(@@block_size, buf)
+        output << decipher.update(buf)
+      end
+      output << decipher.final
+    end
+
+    output.open # re-open for reading, prevents early deletion of tempfile
     output.path
   end
 

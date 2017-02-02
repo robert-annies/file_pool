@@ -11,7 +11,7 @@ class FilePoolEncryptionTest < Test::Unit::TestCase
     @test_dir = "#{File.dirname(__FILE__)}/files"
     @pool_root = "#{File.dirname(__FILE__)}/fp_root"
     @file_pool_config = "#{File.dirname(__FILE__)}/file_pool_cfg.yml"
-    FilePool.setup @pool_root, :secrets_file => @file_pool_config
+    FilePool.setup @pool_root, :secrets_file => @file_pool_config, :encryption_block_size => 1024
   end
 
   def teardown
