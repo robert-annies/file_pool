@@ -13,7 +13,6 @@ tree and generates unique identifiers for all files.
   gem.homepage      = "https://github.com/robokopp/file_pool"
 
   gem.files         = ["lib/file_pool.rb", "lib/file_pool/version.rb"]
-  gem.test_files    = ["test/test_file_pool.rb","test/test_file_pool_encryption.rb"]
   gem.extra_rdoc_files = ["README.md"]
   gem.name          = "file_pool"
   gem.require_paths = ["lib"]
