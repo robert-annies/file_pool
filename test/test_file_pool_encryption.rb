@@ -96,5 +96,10 @@ class FilePoolEncryptionTest < Test::Unit::TestCase
       assert !FilePool.remove("61e9b2d1-1738-440d-9b3d-e3c64876f2b0")
       assert !FilePool.add("/not/here/foo.png")
     end
+
+    should "detect whether file encrypted" do
+      fid = FilePool.add(@test_dir+"/a")
+      assert FilePool.encrypted?(fid)
+    end
   end
 end

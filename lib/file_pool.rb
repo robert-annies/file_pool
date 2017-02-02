@@ -337,4 +337,13 @@ module FilePool
       end
     end
   end
+
+  #
+  # Tell wehther a file was stored with encryption. (checks for presence in
+  # the secured part of the file pool. If the file was actually encrypted cannot
+  # be answered)
+  #
+  def self.encrypted? fid
+    File.file?(id2dir_secured(fid) + "/#{fid}")
+  end
 end
