@@ -260,7 +260,8 @@ module FilePool
     cipher = create_cipher
     result = Tempfile.new 'FilePool-encrypt'
 
-    buf = ''
+    result.set_encoding Encoding::BINARY,Encoding::BINARY
+    buf = ''.encode(Encoding::BINARY)
 
     File.open(path) do |inf|
       while inf.read(@@block_size, buf)
@@ -291,7 +292,9 @@ module FilePool
     # Now decrypt the data:
     output = Tempfile.new 'FilePool-decrypt'
 
-    buf = ''
+    output.set_encoding Encoding::BINARY,Encoding::BINARY
+    buf = ''.encode(Encoding::BINARY)
+
     File.open(path) do |inf|
       while inf.read(@@block_size, buf)
         output << decipher.update(buf)
