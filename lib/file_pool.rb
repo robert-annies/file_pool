@@ -26,13 +26,33 @@ module FilePool
   #   * :encryption_block_size (Integer) sets the block size for
   #     encryption/decryption in bytes. Larger blocks need more memory and less time (less IO).
   #     Defaults to 1'048'576 (1 MiB).
+  #   * :copy_source (true,false)
+  #     if +false+ files added to the pool are hard-linked with the source if source and file pool 
+  #     are on the same file system (default). If set to +true+ files are always copied into the pool.
+  #   * :mode (Integer)
+  #     File mode to set on all files added to the pool. E.g. +mode:+ +0640+ for +rw-r-----+ or symbolic "u=wrx,go=rx"
+  #     (see Ruby stdlib FileUtils#chmod).
+  #     Note that the desired mode is not set if the file is hard-linked with the source. 
+  #     Use +copy_source:true+ when to ensure.
+  #   * :owner
+  #     Owner of the files added to the pool. 
+  #     Note that the desired owner is not set if the file is hard-linked with the source. 
+  #     Use +copy_source:true+ when to ensure.
+  #   * :group
+  #     Group of the files added to the pool. 
+  #     Note that the desired group is not set if the file is hard-linked with the source. 
+  #     Use +copy_source:true+ when to ensure.
   def self.setup root, options={}
-    unless(unknown = options.keys - [:encryption_block_size, :secrets_file]).empty?
+    unless(unknown = options.keys - [:encryption_block_size, :secrets_file, :copy_source, :mode, :owner, :group]).empty?
       puts "FilePool Warning: unknown option(s) passed to #setup: #{unknown.inspect}"
     end
     @@root = root
     @@crypted_mode = false
     @@block_size = options[:encryption_block_size] || (1024*1024)
+    @@copy_source = options[:copy_source] || false
+    @@mode = options[:mode]
+    @@group = options[:group]
+    @@owner = options[:owner]
     configure options[:secrets_file]
   end
 
@@ -64,13 +84,16 @@ module FilePool
     else
       FileUtils.mkpath(id2dir newid)
     end
-    FileUtils.link(path, target)
 
-    return newid
+    if !@@copy_source and (File.stat(path).dev == File.stat(File.dirname(target)).dev)
+      FileUtils.link(path, target)
+    else
+      FileUtils.copy(path, target)
+      FileUtils.chmod(@@mode, target) if @@mode
+      FileUtils.chown(@@owner, @@group, target)
+    end
 
-  rescue Errno::EXDEV
-    FileUtils.copy(path, target)
-    return newid
+    newid
   end
 
   #
@@ -90,7 +113,7 @@ module FilePool
   def self.add path
     self.add!(path)
 
-  rescue Exception => ex
+  rescue Exception
     return false
   end
 
@@ -260,7 +283,8 @@ module FilePool
     cipher = create_cipher
     result = Tempfile.new 'FilePool-encrypt'
 
-    buf = ''
+    result.set_encoding Encoding::BINARY,Encoding::BINARY
+    buf = ''.encode(Encoding::BINARY)
 
     File.open(path) do |inf|
       while inf.read(@@block_size, buf)
@@ -291,7 +315,9 @@ module FilePool
     # Now decrypt the data:
     output = Tempfile.new 'FilePool-decrypt'
 
-    buf = ''
+    output.set_encoding Encoding::BINARY,Encoding::BINARY
+    buf = ''.encode(Encoding::BINARY)
+
     File.open(path) do |inf|
       while inf.read(@@block_size, buf)
         output << decipher.update(buf)

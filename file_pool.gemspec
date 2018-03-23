@@ -1,4 +1,4 @@
-# -*- encoding: utf-8 -*-
+# coding: utf-8
 $:.unshift File.expand_path("../lib", __FILE__)
 require "file_pool/version"
 
@@ -18,4 +18,5 @@ tree and generates unique identifiers for all files.
   gem.require_paths = ["lib"]
   gem.version       = FilePool::VERSION
   gem.add_dependency('uuidtools', '~> 2.1.2')
+  gem.add_development_dependency('pry')
 end
