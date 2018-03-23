@@ -4,6 +4,7 @@ require 'bundler/setup'
 require 'test/unit'
 require 'shoulda-context'
 require 'file_pool'
+require 'pry'
 
 class FilePoolTest < Test::Unit::TestCase
 
@@ -27,6 +28,7 @@ class FilePoolTest < Test::Unit::TestCase
       md5_pooled = Digest::MD5.hexdigest(File.open(FilePool.path(fid)).read)
 
       assert_equal md5_orig, md5_pooled
+      assert_equal File.stat(@test_dir+"/a").ino, File.stat(FilePool.path(fid)).ino  
     end
 
     should "return path from stored files" do
@@ -81,5 +83,14 @@ class FilePoolTest < Test::Unit::TestCase
       fid = FilePool.add(@test_dir+"/a")
       assert !FilePool.encrypted?(fid)
     end
+
+    should "copy files and set configure mode" do
+      FilePool.setup @pool_root, mode:0606, copy_source:true
+      fidc = FilePool.add!(@test_dir+"/c")
+
+      assert File.stat(@test_dir+"/c").ino != File.stat(FilePool.path(fidc)).ino  
+      assert_equal 0100606, File.stat(FilePool.path(fidc)).mode
+    end
+
   end
 end
