@@ -4,7 +4,6 @@ require 'bundler/setup'
 require 'test/unit'
 require 'shoulda-context'
 require 'file_pool'
-require 'pry'
 
 class FilePoolTest < Test::Unit::TestCase
 
@@ -85,7 +84,7 @@ class FilePoolTest < Test::Unit::TestCase
     end
 
     should "copy files and set configure mode" do
-      FilePool.setup @pool_root, mode => 0606, copy_source => true
+      FilePool.setup @pool_root, :mode => 0606, :copy_source => true
       fidc = FilePool.add!(@test_dir+"/c")
 
       assert File.stat(@test_dir+"/c").ino != File.stat(FilePool.path(fidc)).ino  
