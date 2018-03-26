@@ -74,21 +74,26 @@ module FilePool
   # === Return Value:
   #
   # :: *String* containing a new unique ID for the file added.
-  def self.add! path
+  def self.add! orig_path
     newid = uuid
     target = path newid
 
     if @@crypted_mode
       FileUtils.mkpath(id2dir_secured newid)
-      path = crypt(path)
+      path = crypt(orig_path)      
     else
+      path = orig_path
       FileUtils.mkpath(id2dir newid)
     end
 
     if !@@copy_source and (File.stat(path).dev == File.stat(File.dirname(target)).dev)
       FileUtils.link(path, target)
     else
-      FileUtils.copy(path, target)
+      FileUtils.copy(path, target)     
+    end
+
+    # don't chmod if orginal file is same as target (hard-linked) 
+    if File.stat(orig_path).ino != File.stat(File.dirname(target)).ino
       FileUtils.chmod(@@mode, target) if @@mode
       FileUtils.chown(@@owner, @@group, target)
     end
