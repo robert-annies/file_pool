@@ -294,6 +294,8 @@ module FilePool
     File.open(path) do |inf|
       while inf.read(@@block_size, buf)
         result << cipher.update(buf)
+        result.flush
+        result.fsync
       end
       result << cipher.final
     end
@@ -326,6 +328,8 @@ module FilePool
     File.open(path) do |inf|
       while inf.read(@@block_size, buf)
         output << decipher.update(buf)
+        output.flush
+        output.fsync
       end
       output << decipher.final
     end
