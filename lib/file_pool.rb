@@ -70,32 +70,43 @@ module FilePool
   #
   # path (String)::
   #   path of the file to add.
+  # options (Hash)::
+  #   :background (true,false) adding large files can take long (esp. with encryption), +true+ won't block, default is +false+
   #
   # === Return Value:
   #
   # :: *String* containing a new unique ID for the file added.
-  def self.add! orig_path
+  def self.add! orig_path, options = {}
     newid = uuid
-    target = path newid
 
-    if @@crypted_mode
-      FileUtils.mkpath(id2dir_secured newid)
-      path = crypt(orig_path)      
-    else
-      path = orig_path
-      FileUtils.mkpath(id2dir newid)
+    _add = lambda do
+      target = path newid
+
+      if @@crypted_mode
+        FileUtils.mkpath(id2dir_secured newid)
+        path = crypt(orig_path)      
+      else
+        path = orig_path
+        FileUtils.mkpath(id2dir newid)
+      end
+
+      if !@@copy_source and (File.stat(path).dev == File.stat(File.dirname(target)).dev)
+        FileUtils.link(path, target)
+      else
+        FileUtils.copy(path, target)     
+      end
+
+      # don't chmod if orginal file is same as target (hard-linked) 
+      if File.stat(orig_path).ino != File.stat(File.dirname(target)).ino
+        FileUtils.chmod(@@mode, target) if @@mode
+        FileUtils.chown(@@owner, @@group, target)
+      end
     end
 
-    if !@@copy_source and (File.stat(path).dev == File.stat(File.dirname(target)).dev)
-      FileUtils.link(path, target)
+    if options[:background]
+      Thread.new{ _add.call }
     else
-      FileUtils.copy(path, target)     
-    end
-
-    # don't chmod if orginal file is same as target (hard-linked) 
-    if File.stat(orig_path).ino != File.stat(File.dirname(target)).ino
-      FileUtils.chmod(@@mode, target) if @@mode
-      FileUtils.chown(@@owner, @@group, target)
+      _add.call
     end
 
     newid
@@ -110,13 +121,15 @@ module FilePool
   #
   # source (String)::
   #   path of the file to add.
-  #
+  # options (Hash)::
+  #   :background (true,false) adding large files can take long (esp. with encryption), +true+ won't block, default is +false+
+  # 
   # === Return Value:
   #
   # :: *String* containing a new unique ID for the file added.
   # :: +false+ when the file could not be stored.
-  def self.add path
-    self.add!(path)
+  def self.add path, options = {}
+    self.add!(path, options)
 
   rescue Exception
     return false
