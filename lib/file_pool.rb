@@ -106,10 +106,10 @@ module FilePool
 
     if options[:background]
       # don't wait, avoid zombies
-      Process.detach(pid)
+      Process.detach(child)
     else
       # block until done
-      Process.waitpid(pid) 
+      Process.waitpid(child) 
     end
 
     newid
