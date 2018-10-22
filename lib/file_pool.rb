@@ -79,7 +79,7 @@ module FilePool
   def self.add! orig_path, options = {}
     newid = uuid
 
-    _add = lambda do
+    child = fork do
       target = path newid
 
       if @@crypted_mode
@@ -103,10 +103,13 @@ module FilePool
       end
     end
 
+
     if options[:background]
-      Thread.new{ _add.call }
+      # don't wait, avoid zombies
+      Process.detach(pid)
     else
-      _add.call
+      # block until done
+      Process.waitpid(pid) 
     end
 
     newid
