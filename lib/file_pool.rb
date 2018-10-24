@@ -330,14 +330,13 @@ module FilePool
     # Crypt the file in the temp folder and copy after
     cipher = create_cipher
     result = Tempfile.new 'FilePool-encrypt'
-
+    result.sync = true
     buf = ''
 
     File.open(path) do |inf|
-      while inf.read(@@block_size, buf)
-        result << cipher.update(buf)
-        result.flush
-        result.fsync
+      size = 0
+      while inf.read(@@block_size, buf)        
+        result << cipher.update(buf)        
       end
       result << cipher.final
     end
