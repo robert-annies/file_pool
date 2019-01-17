@@ -84,7 +84,7 @@ module FilePool
 
       if @@crypted_mode
         FileUtils.mkpath(id2dir_secured newid)
-        path = crypt(orig_path)      
+        path = encrypt_to_tempfile(orig_path)      
       else
         path = orig_path
         FileUtils.mkpath(id2dir newid)
@@ -139,6 +139,31 @@ module FilePool
   end
 
   #
+  # Add a new file from a stream to the file pool
+  #
+  def self.add_stream in_stream
+    newid = uuid
+
+    # ensure target path exists
+    if @@crypted_mode
+      FileUtils.mkpath(id2dir_secured newid)
+    else
+      FileUtils.mkpath(id2dir newid)
+    end
+
+    child = fork do
+      # create the target file to write 
+      open(path(newid),'w') do |out_stream|
+        encrypt in_stream, out_stream
+      end
+    end
+
+    Process.detach(child)
+
+    newid
+  end 
+
+  #
   # Return the file's path corresponding to the passed file ID, no matter if it
   # exists or not. In encrypting mode the file is first decrypted and the
   # returned path will point to a temporary location of the decrypted file.
@@ -157,7 +182,7 @@ module FilePool
   #
   # :: *String*, absolute path of the file in the pool or to temporary location if it was decrypted.
   def self.path fid, options={}
-    options[:decrypt] = true unless options[:decrypt] == false
+    options[:decrypt] = options.fetch(:decrypt, true)
 
     raise InvalidFileId unless valid?(fid)
 
@@ -167,7 +192,7 @@ module FilePool
       if @@crypted_mode
         if options[:decrypt]
           # return path of decrypted file (tmp path)
-          decrypt_to_file id2dir_secured(fid) + "/#{fid}"
+          decrypt_to_tempfile id2dir_secured(fid) + "/#{fid}"
         else
           id2dir_secured(fid) + "/#{fid}"
         end
@@ -203,7 +228,7 @@ module FilePool
   # :: *IO*, IO stream open for reading
   # 
   def self.stream fid, options={}
-    options[:decrypt] = true unless options[:decrypt] == false
+    options[:decrypt] = options.fetch(:decrypt, true)
 
     if path = path(fid, :decrypt => false)
       if @@crypted_mode and options[:decrypt]
@@ -314,7 +339,7 @@ module FilePool
   end
 
   #
-  # Crypt a file and store the result in the temp.
+  # Crypt a file and store the result a Tempfile 
   #
   # Returns the path to the crypted file.
   #
@@ -326,23 +351,14 @@ module FilePool
   # === Return Value:
   #
   # :: *String* Path and name of the crypted file.
-  def self.crypt path
+  def self.encrypt_to_tempfile path
     # Crypt the file in the temp folder and copy after
-    cipher = create_cipher
-    result = Tempfile.new 'FilePool-encrypt'
-    result.sync = true
-    buf = ''
+    tempfile = Tempfile.new 'FilePool-encrypt'
+    tempfile.sync = true
+    
+    encrypt open(path), tempfile
 
-    File.open(path) do |inf|
-      size = 0
-      while inf.read(@@block_size, buf)        
-        result << cipher.update(buf)        
-      end
-      result << cipher.final
-    end
-
-    result.close
-    result.path
+    tempfile.path
   end
 
   #
@@ -358,14 +374,14 @@ module FilePool
   # === Return Value:
   # 
   # :: *String* Path and name of the decrypted file.
-  def self.decrypt_to_file path
+  def self.decrypt_to_tempfile path
     tmpfile = Tempfile.new 'FilePool-decrypt'
+    tmpfile.sync = true
 
-    File.open(path) do |crpt|
-      decrypt_io crpt, tmpfile
+    File.open(path) do |encrypted_file|
+      decrypt encrypted_file, tmpfile
     end
 
-    tmpfile.open # re-open for reading, prevents early deletion of tempfile
     tmpfile.path
   end
 
@@ -389,8 +405,8 @@ module FilePool
       pipe_read.close
 
       # open encrypted file
-      File.open(path) do |crpt|
-        decrypt_io crpt, pipe_write       
+      File.open(path) do |encrypted_file|
+        decrypt encrypted_file, pipe_write       
       end
 
       pipe_write.close
@@ -402,36 +418,28 @@ module FilePool
     pipe_read 
   end
 
-  #
-  # Decrypts given IO blockwise and returns IO of decrypted data
-  # 
-  # === Parameters:
-  #
-  # in_io (IO)::
-  #   provide encrypted data, must be open for reading
-  # out_io (IO)::
-  #   provides decrypted data, must be open for writing
-  # 
-  # === Retrun value: 
-  # 
-  # nil
-  def self.decrypt_io in_io, out_io 
-    decipher = create_decipher
-    buf = ''
 
-    while in_io.read(@@block_size, buf)
-      out_io << decipher.update(buf)
-      if out_io.is_a?(File)
-        # avoid memory buffering
-        out_io.flush
-        out_io.fsync
-      end
-    end
-
-    out_io << decipher.final    
-    nil
+  # decrypts data stream +in_stream+ (IO: readable) to +out+ (IO: writeable), blocking
+  def self.decrypt in_stream, out_stream
+    crypt(in_stream, out_stream, :decrypt)
   end
 
+  # encrypts data stream +in+ (IO: readable) to +out+ (IO: writeable), blocking
+  def self.encrypt in_stream, out_stream
+    crypt(in_stream, out_stream, :encrypt)
+  end
+
+  def self.crypt in_stream, out_stream, direction
+    cipher = (direction == :encrypt) ? create_cipher : create_decipher
+    buf = ''
+
+    while in_stream.read(@@block_size, buf)    
+      out_stream << cipher.update(buf)
+    end
+    out_stream << cipher.final
+
+    nil
+  end
   #
   # Creates a cipher to encrypt data.
   #
