@@ -27,20 +27,20 @@ module FilePool
   #     encryption/decryption in bytes. Larger blocks need more memory and less time (less IO).
   #     Defaults to 1'048'576 (1 MiB).
   #   * :copy_source (true,false)
-  #     if +false+ files added to the pool are hard-linked with the source if source and file pool 
+  #     if +false+ files added to the pool are hard-linked with the source if source and file pool
   #     are on the same file system (default). If set to +true+ files are always copied into the pool.
   #   * :mode (Integer)
   #     File mode to set on all files added to the pool. E.g. +mode:+ +0640+ for +rw-r-----+ or symbolic "u=wrx,go=rx"
   #     (see Ruby stdlib FileUtils#chmod).
-  #     Note that the desired mode is not set if the file is hard-linked with the source. 
+  #     Note that the desired mode is not set if the file is hard-linked with the source.
   #     Use +copy_source:true+ when to ensure.
   #   * :owner
-  #     Owner of the files added to the pool. 
-  #     Note that the desired owner is not set if the file is hard-linked with the source. 
+  #     Owner of the files added to the pool.
+  #     Note that the desired owner is not set if the file is hard-linked with the source.
   #     Use +copy_source:true+ when to ensure.
   #   * :group
-  #     Group of the files added to the pool. 
-  #     Note that the desired group is not set if the file is hard-linked with the source. 
+  #     Group of the files added to the pool.
+  #     Note that the desired group is not set if the file is hard-linked with the source.
   #     Use +copy_source:true+ when to ensure.
   def self.setup root, options={}
     unless(unknown = options.keys - [:encryption_block_size, :secrets_file, :copy_source, :mode, :owner, :group]).empty?
@@ -70,32 +70,48 @@ module FilePool
   #
   # path (String)::
   #   path of the file to add.
+  # options (Hash)::
+  #   :background (true,false) adding large files can take long (esp. with encryption), +true+ won't block, default is +false+
   #
   # === Return Value:
   #
   # :: *String* containing a new unique ID for the file added.
-  def self.add! orig_path
+  def self.add! orig_path, options = {}
     newid = uuid
-    target = path newid
 
-    if @@crypted_mode
-      FileUtils.mkpath(id2dir_secured newid)
-      path = crypt(orig_path)      
-    else
-      path = orig_path
-      FileUtils.mkpath(id2dir newid)
+    raise Errno::ENOENT unless File.exist?(orig_path)
+
+    child = fork do
+      target = path newid
+
+      if @@crypted_mode
+        FileUtils.mkpath(id2dir_secured newid)
+        path = encrypt_to_tempfile(orig_path)
+      else
+        path = orig_path
+        FileUtils.mkpath(id2dir newid)
+      end
+
+      if !@@copy_source and (File.stat(path).dev == File.stat(File.dirname(target)).dev)
+        FileUtils.link(path, target)
+      else
+        FileUtils.copy(path, target)
+      end
+
+      # don't chmod if orginal file is same as target (hard-linked)
+      if File.stat(orig_path).ino != File.stat(File.dirname(target)).ino
+        FileUtils.chmod(@@mode, target) if @@mode
+        FileUtils.chown(@@owner, @@group, target)
+      end
     end
 
-    if !@@copy_source and (File.stat(path).dev == File.stat(File.dirname(target)).dev)
-      FileUtils.link(path, target)
-    else
-      FileUtils.copy(path, target)     
-    end
 
-    # don't chmod if orginal file is same as target (hard-linked) 
-    if File.stat(orig_path).ino != File.stat(File.dirname(target)).ino
-      FileUtils.chmod(@@mode, target) if @@mode
-      FileUtils.chown(@@owner, @@group, target)
+    if options[:background]
+      # don't wait, avoid zombies
+      Process.detach(child)
+    else
+      # block until done
+      Process.waitpid(child)
     end
 
     newid
@@ -110,16 +126,43 @@ module FilePool
   #
   # source (String)::
   #   path of the file to add.
+  # options (Hash)::
+  #   :background (true,false) adding large files can take long (esp. with encryption), +true+ won't block, default is +false+
   #
   # === Return Value:
   #
   # :: *String* containing a new unique ID for the file added.
   # :: +false+ when the file could not be stored.
-  def self.add path
-    self.add!(path)
+  def self.add path, options = {}
+    self.add!(path, options)
 
   rescue Exception
     return false
+  end
+
+  #
+  # Add a new file from a stream to the file pool
+  #
+  def self.add_stream in_stream
+    newid = uuid
+
+    # ensure target path exists
+    if @@crypted_mode
+      FileUtils.mkpath(id2dir_secured newid)
+    else
+      FileUtils.mkpath(id2dir newid)
+    end
+
+    child = fork do
+      # create the target file to write
+      open(path(newid),'w') do |out_stream|
+        encrypt in_stream, out_stream
+      end
+    end
+
+    Process.detach(child)
+
+    newid
   end
 
   #
@@ -141,7 +184,7 @@ module FilePool
   #
   # :: *String*, absolute path of the file in the pool or to temporary location if it was decrypted.
   def self.path fid, options={}
-    options[:decrypt] = true unless options[:decrypt] == false
+    options[:decrypt] = options.fetch(:decrypt, true)
 
     raise InvalidFileId unless valid?(fid)
 
@@ -151,7 +194,7 @@ module FilePool
       if @@crypted_mode
         if options[:decrypt]
           # return path of decrypted file (tmp path)
-          decrypt id2dir_secured(fid) + "/#{fid}"
+          decrypt_to_tempfile id2dir_secured(fid) + "/#{fid}"
         else
           id2dir_secured(fid) + "/#{fid}"
         end
@@ -167,6 +210,33 @@ module FilePool
         id2dir_secured(fid) + "/#{fid}"
       else
         id2dir(fid) + "/#{fid}"
+      end
+    end
+  end
+
+  # Returns an IO object providing an (unencrypted) stream of data of the given file ID
+  # To get the stream of the encrypted data pass :decrypt => false, as an option.
+  #
+  # === Parameters:
+  #
+  # fid (String)::
+  #   File ID which was generated by a previous #add operation.
+  #
+  # options (Hash)::
+  #   :decrypt (true,false) In encryption mode don't decrypt, but prioved the encrypted data. Defaults to +true+.
+  #
+  # === Return Value:
+  #
+  # :: *IO*, IO stream open for reading
+  #
+  def self.stream fid, options={}
+    options[:decrypt] = options.fetch(:decrypt, true)
+
+    if path = path(fid, :decrypt => false)
+      if @@crypted_mode and options[:decrypt]
+        decrypt_to_stream path
+      else
+        open(path)
       end
     end
   end
@@ -271,7 +341,7 @@ module FilePool
   end
 
   #
-  # Crypt a file and store the result in the temp.
+  # Crypt a file and store the result a Tempfile
   #
   # Returns the path to the crypted file.
   #
@@ -282,30 +352,19 @@ module FilePool
   #
   # === Return Value:
   #
-  # :: *String*Path and name of the crypted file.
-  def self.crypt path
+  # :: *String* Path and name of the crypted file.
+  def self.encrypt_to_tempfile path
     # Crypt the file in the temp folder and copy after
-    cipher = create_cipher
-    result = Tempfile.new 'FilePool-encrypt'
+    tempfile = Tempfile.new 'FilePool-encrypt'
+    tempfile.sync = true
 
-    result.set_encoding Encoding::BINARY,Encoding::BINARY
-    buf = ''.encode(Encoding::BINARY)
+    encrypt open(path), tempfile
 
-    File.open(path) do |inf|
-      while inf.read(@@block_size, buf)
-        result << cipher.update(buf)
-        result.flush
-        result.fsync
-      end
-      result << cipher.final
-    end
-
-    result.close
-    result.path
+    tempfile.path
   end
 
   #
-  # Decrypt a file and give a path to it.
+  # Decrypt file to a file in /tmp
   #
   # Returns the path to the decrypted file.
   #
@@ -316,28 +375,73 @@ module FilePool
   #
   # === Return Value:
   #
-  # :: *String*Path and name of the crypted file.
-  def self.decrypt path
-    decipher = create_decipher
-    # Now decrypt the data:
-    output = Tempfile.new 'FilePool-decrypt'
+  # :: *String* Path and name of the decrypted file.
+  def self.decrypt_to_tempfile path
+    tmpfile = Tempfile.new 'FilePool-decrypt'
+    tmpfile.sync = true
 
-    output.set_encoding Encoding::BINARY,Encoding::BINARY
-    buf = ''.encode(Encoding::BINARY)
-
-    File.open(path) do |inf|
-      while inf.read(@@block_size, buf)
-        output << decipher.update(buf)
-        output.flush
-        output.fsync
-      end
-      output << decipher.final
+    File.open(path) do |encrypted_file|
+      decrypt encrypted_file, tmpfile
     end
 
-    output.open # re-open for reading, prevents early deletion of tempfile
-    output.path
+    tmpfile.path
   end
 
+  #
+  # Decrypt file to a stream (IO) non-blocking by forking a child process.
+  #
+  # === Parameters:
+  #
+  # path (String)::
+  #   path of the file to decrypt.
+  #
+  # === Return Value:
+  #
+  # :: *IO* decrypted data as stream
+  def self.decrypt_to_stream path
+
+    pipe_read, pipe_write = IO.pipe
+
+    child = fork do
+      # in child process: decrypting
+      pipe_read.close
+
+      # open encrypted file
+      File.open(path) do |encrypted_file|
+        decrypt encrypted_file, pipe_write
+      end
+
+      pipe_write.close
+    end
+
+    # in parent
+    Process.detach(child) # not waiting for it
+    pipe_write.close
+    pipe_read
+  end
+
+
+  # decrypts data stream +in_stream+ (IO: readable) to +out+ (IO: writeable), blocking
+  def self.decrypt in_stream, out_stream
+    crypt(in_stream, out_stream, :decrypt)
+  end
+
+  # encrypts data stream +in+ (IO: readable) to +out+ (IO: writeable), blocking
+  def self.encrypt in_stream, out_stream
+    crypt(in_stream, out_stream, :encrypt)
+  end
+
+  def self.crypt in_stream, out_stream, direction
+    cipher = (direction == :encrypt) ? create_cipher : create_decipher
+    buf = ''
+
+    while in_stream.read(@@block_size, buf)
+      out_stream << cipher.update(buf)
+    end
+    out_stream << cipher.final
+
+    nil
+  end
   #
   # Creates a cipher to encrypt data.
   #
