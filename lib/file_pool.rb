@@ -433,7 +433,10 @@ module FilePool
 
   def self.crypt in_stream, out_stream, direction
     cipher = (direction == :encrypt) ? create_cipher : create_decipher
-    buf = ''
+
+    buf = ''.encode(Encoding::BINARY)
+    out_stream.set_encoding Encoding::BINARY,Encoding::BINARY
+    in_stream.set_encoding Encoding::BINARY,Encoding::BINARY
 
     while in_stream.read(@@block_size, buf)
       out_stream << cipher.update(buf)
