@@ -92,9 +92,11 @@ module FilePool
         FileUtils.mkpath(id2dir newid)
       end
 
-      if !@@copy_source and (File.stat(path).dev == File.stat(File.dirname(target)).dev)
+      # try quick hard-linking, copy if forced or hard-linking impossible
+      begin
+        raise Errno::EXDEV if @@copy_source
         FileUtils.link(path, target)
-      else
+      rescue Errno::EXDEV
         FileUtils.copy(path, target)
       end
 
