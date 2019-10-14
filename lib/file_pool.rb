@@ -156,10 +156,14 @@ module FilePool
     end
 
     child = fork do
+      target = path(newid)
       # create the target file to write
-      open(path(newid),'w') do |out_stream|
+      open(target,'w') do |out_stream|
         encrypt in_stream, out_stream
       end
+
+      FileUtils.chmod(@@mode, target) if @@mode
+      FileUtils.chown(@@owner, @@group, target)
     end
 
     Process.detach(child)
