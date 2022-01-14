@@ -18,6 +18,6 @@ tree and generates unique identifiers for all files.
   gem.require_paths = ["lib"]
   gem.version       = FilePool::VERSION
   gem.add_dependency('uuidtools', '~> 2.1.2')
-  gem.required_ruby_version = '~> 2.0'
+  gem.required_ruby_version = '> 2.0'
   gem.add_development_dependency('pry')
 end
